@@ -1,0 +1,16 @@
+{
+  "name": "hookpipe",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --filter server dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:worker": "pnpm --filter server worker",
+    "db:migrate": "pnpm --filter server db:migrate",
+    "db:studio": "pnpm --filter server db:studio"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

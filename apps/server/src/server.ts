@@ -2,6 +2,9 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import helmet from '@fastify/helmet'
 import { env } from './config/env'
+import { ingestRoutes } from './routes/ingest.js'
+import { projectRoutes } from './routes/projects.js'
+import { eventRoutes } from './routes/events.js'
 
 const app = Fastify({
   logger: {
@@ -23,6 +26,11 @@ await app.register(cors, {
 app.get('/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() }
 })
+
+// Routes — each file handles one resource
+await app.register(ingestRoutes, { prefix: '/ingest' })
+await app.register(projectRoutes, { prefix: '/api/projects' })
+await app.register(eventRoutes, { prefix: '/api/events' })
 
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' })

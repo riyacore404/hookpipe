@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq'
-import { db } from '../db/client'
-import { createRedisClient } from '../lib/redis'
-import type { DeliveryJobData } from '../queues/delivery.queue'
+import { db } from '../db/client.js'
+import { createRedisClient } from '../lib/redis.js'
+import type { DeliveryJobData } from '../queues/delivery.queue.js'
 
 export const deliveryWorker = new Worker<DeliveryJobData>(
   'delivery',
@@ -42,10 +42,12 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
       // Treat any 2xx as success
       if (!response.ok) {
         status = 'failed'
-        throw new Error(`Destination returned ${response.status}`)
+        // throw new Error(`Destination returned ${response.status}`)
       }
 
     } catch (err) {
+      // only network-level errors land here (timeout, ECONNREFUSED)
+      // HTTP errors like 500 are handled above — response.ok = false
       status = 'failed'
 
       // Log the attempt even if it failed
@@ -53,8 +55,8 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
         data: {
           eventId,
           destinationId,
-          status,
-          httpStatus,
+          status: 'failed',
+          httpStatus,           // null on network error — that's correct
           responseBody,
           latencyMs: Date.now() - startTime,
           attemptNumber,
@@ -77,6 +79,11 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
         attemptNumber,
       },
     })
+
+    // if it was a 4xx/5xx, tell BullMQ to retry
+    if (status === 'failed') {
+      throw new Error(`Destination returned ${httpStatus}`)
+    }
   },
   {
     connection: createRedisClient(),

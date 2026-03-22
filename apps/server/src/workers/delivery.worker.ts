@@ -1,96 +1,68 @@
-import { Worker } from 'bullmq'
-import { db } from '../db/client.js'
+import { Worker, type Job } from 'bullmq'
 import { createRedisClient } from '../lib/redis.js'
+import { attemptDelivery, logDeliveryAttempt, markDeliveryDead } from '../services/delivery.service.js'
+import { db } from '../db/client.js'
 import type { DeliveryJobData } from '../queues/delivery.queue.js'
 
 export const deliveryWorker = new Worker<DeliveryJobData>(
   'delivery',
-  async (job) => {
+  async (job: Job<DeliveryJobData>) => {
     const { eventId, destinationId, destinationUrl, attemptNumber } = job.data
 
-    // Fetch the event payload from DB
+    console.log(`[delivery] attempt ${attemptNumber} → ${destinationUrl}`)
+
+    // fetch payload from db
     const event = await db.event.findUnique({
       where: { id: eventId },
     })
 
     if (!event) {
-      throw new Error(`Event ${eventId} not found`)
+      // don't retry — event genuinely doesn't exist
+      throw new Error(`Event ${eventId} not found — skipping`)
     }
 
-    const startTime = Date.now()
-    let httpStatus: number | null = null
-    let responseBody: string | null = null
-    let status = 'success'
+    // run the actual HTTP delivery
+    const result = await attemptDelivery(
+      destinationUrl,
+      event.payload,
+      eventId,
+      attemptNumber
+    )
 
-    try {
-      const response = await fetch(destinationUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Hookpipe-Event-Id': eventId,
-          'X-Hookpipe-Attempt': String(attemptNumber),
-          // HMAC signing comes in Phase 3
-        },
-        body: JSON.stringify(event.payload),
-        signal: AbortSignal.timeout(30_000), // 30 second timeout
-      })
+    // always log the attempt — success or failure
+    await logDeliveryAttempt(eventId, destinationId, attemptNumber, result)
 
-      httpStatus = response.status
-      const text = await response.text()
-      responseBody = text.slice(0, 1000) // store first 1000 chars only
+    console.log(
+      `[delivery] ${result.status} (${result.httpStatus ?? 'network error'}) ` +
+      `→ ${destinationUrl} in ${result.latencyMs}ms`
+    )
 
-      // Treat any 2xx as success
-      if (!response.ok) {
-        status = 'failed'
-        // throw new Error(`Destination returned ${response.status}`)
-      }
-
-    } catch (err) {
-      // only network-level errors land here (timeout, ECONNREFUSED)
-      // HTTP errors like 500 are handled above — response.ok = false
-      status = 'failed'
-
-      // Log the attempt even if it failed
-      await db.deliveryAttempt.create({
-        data: {
-          eventId,
-          destinationId,
-          status: 'failed',
-          httpStatus,           // null on network error — that's correct
-          responseBody,
-          latencyMs: Date.now() - startTime,
-          attemptNumber,
-        },
-      })
-
-      // Re-throw so BullMQ knows to retry
-      throw err
-    }
-
-    // Log successful delivery
-    await db.deliveryAttempt.create({
-      data: {
-        eventId,
-        destinationId,
-        status,
-        httpStatus,
-        responseBody,
-        latencyMs: Date.now() - startTime,
-        attemptNumber,
-      },
-    })
-
-    // if it was a 4xx/5xx, tell BullMQ to retry
-    if (status === 'failed') {
-      throw new Error(`Destination returned ${httpStatus}`)
+    // if failed — throw so BullMQ schedules the retry
+    if (result.status === 'failed') {
+      throw new Error(`Delivery failed — status ${result.httpStatus ?? 'network error'}`)
     }
   },
   {
     connection: createRedisClient(),
-    concurrency: 20, // deliver 20 webhooks simultaneously
+    concurrency: 20,
   }
 )
 
-deliveryWorker.on('failed', (job, err) => {
-  console.error(`Delivery job ${job?.id} failed:`, err.message)
+// fires when ALL retries are exhausted — this is the dead letter handler
+deliveryWorker.on('failed', async (job, err) => {
+  if (!job) return
+
+  const isExhausted = job.attemptsMade >= (job.opts.attempts ?? 1)
+
+  if (isExhausted) {
+    console.log(`[delivery] job ${job.id} exhausted all retries — marking dead`)
+
+    const { eventId, destinationId, attemptNumber } = job.data
+    await markDeliveryDead(eventId, destinationId, attemptNumber)
+  } else {
+    console.log(
+      `[delivery] job ${job.id} failed attempt ${job.attemptsMade} — ` +
+      `will retry (${err.message})`
+    )
+  }
 })

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { destinationsApi, type Destination } from '@/lib/api'
 import HealthSparkline from './HealthSparkline'
+import FilterRuleBuilder from './FilterRuleBuilder'
 
 function EnvironmentDot({ isActive }: { isActive: boolean }) {
   return (
@@ -114,37 +115,42 @@ export default function DestinationsList({ projectId }: Props) {
           {destinations.map((dest: Destination, i: number) => (
             <div
               key={dest.id}
-              className={`flex items-center gap-3 px-4 py-3.5 ${i < destinations.length - 1 ? 'border-b border-gray-50' : ''
+              className={`px-4 py-3.5 ${i < destinations.length - 1 ? 'border-b border-gray-50' : ''
                 }`}
             >
-              <EnvironmentDot isActive={dest.isActive} />
+              {/* top row — dot, info, sparkline, actions */}
+              <div className="flex items-center gap-3">
+                <EnvironmentDot isActive={dest.isActive} />
 
-              <div className="flex-1 min-w-0">
-                {dest.label && (
-                  <p className="text-sm font-medium text-gray-800">{dest.label}</p>
-                )}
-                <p className="text-xs font-mono text-gray-400 truncate">{dest.url}</p>
+                <div className="flex-1 min-w-0">
+                  {dest.label && (
+                    <p className="text-sm font-medium text-gray-800">{dest.label}</p>
+                  )}
+                  <p className="text-xs font-mono text-gray-400 truncate">{dest.url}</p>
+                </div>
+
+                <div className="flex-shrink-0 mx-2">
+                  <HealthSparkline destinationId={dest.id} />
+                </div>
+                
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => toggleMutation.mutate({ id: dest.id, isActive: !dest.isActive })}
+                    className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    {dest.isActive ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    onClick={() => deleteMutation.mutate(dest.id)}
+                    className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
-              {/* sparkline sits between info and actions */}
-              <div className="flex-shrink-0 mx-2">
-                <HealthSparkline destinationId={dest.id} />
-              </div>
-
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => toggleMutation.mutate({ id: dest.id, isActive: !dest.isActive })}
-                  className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-50"
-                >
-                  {dest.isActive ? 'Disable' : 'Enable'}
-                </button>
-                <button
-                  onClick={() => deleteMutation.mutate(dest.id)}
-                  className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50"
-                >
-                  Delete
-                </button>
-              </div>
+              {/* filter rules — shown below each destination */}
+              <FilterRuleBuilder destinationId={dest.id} />
             </div>
           ))}
         </div>

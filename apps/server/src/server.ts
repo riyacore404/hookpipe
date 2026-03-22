@@ -7,6 +7,7 @@ import { projectRoutes } from './routes/projects.js'
 import { eventRoutes } from './routes/events.js'
 import { destinationRoutes } from './routes/destinations.js'
 import { deliveryRoutes } from './routes/deliveries.js'
+import { filterRuleRoutes } from './routes/filterrules.js'
 
 const app = Fastify({
   logger: {
@@ -35,6 +36,7 @@ await app.register(projectRoutes, { prefix: '/api/projects' })
 await app.register(eventRoutes, { prefix: '/api/events' })
 await app.register(destinationRoutes, { prefix: '/api/destinations' })
 await app.register(deliveryRoutes, { prefix: '/api/deliveries' })
+await app.register(filterRuleRoutes, { prefix: '/api/filter-rules' })
 
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' })

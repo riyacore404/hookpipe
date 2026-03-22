@@ -60,6 +60,14 @@ export type DeliveryAttempt = {
   destination?: Destination
 }
 
+export type FilterRule = {
+  id: string
+  destinationId: string
+  field: string
+  operator: string
+  value: string
+}
+
 // --- API functions ---
 // each function maps to one backend endpoint
 // components call these, never axios directly
@@ -106,4 +114,15 @@ export const deliveriesApi = {
 
   replay: (eventId: string) =>
     api.post(`/api/deliveries/event/${eventId}/replay`),
+}
+
+export const filterRulesApi = {
+  list: (destinationId: string) =>
+    api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`),
+
+  create: (data: { destinationId: string; field: string; operator: string; value: string }) =>
+    api.post<FilterRule>('/api/filter-rules', data),
+
+  delete: (id: string) =>
+    api.delete(`/api/filter-rules/${id}`),
 }

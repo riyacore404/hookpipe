@@ -12,7 +12,8 @@ export async function attemptDelivery(
   destinationUrl: string,
   payload: unknown,
   eventId: string,
-  attemptNumber: number
+  attemptNumber: number,
+  customHeaders: Record<string, string> = {}  // ← add this parameter
 ): Promise<DeliveryResult> {
   const startTime = Date.now()
   let httpStatus: number | null = null
@@ -25,6 +26,7 @@ export async function attemptDelivery(
         'Content-Type': 'application/json',
         'X-Hookpipe-Event-Id': eventId,
         'X-Hookpipe-Attempt': String(attemptNumber),
+        ...customHeaders,  // ← spread custom headers (signature etc)
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30_000),
@@ -42,11 +44,12 @@ export async function attemptDelivery(
     }
 
   } catch (err) {
-    // network-level failure — ECONNREFUSED, timeout etc
     return {
       status: 'failed',
       httpStatus: null,
-      responseBody: err instanceof Error ? err.message.slice(0, 1000) : 'network error',
+      responseBody: err instanceof Error
+        ? err.message.slice(0, 1000)
+        : 'network error',
       latencyMs: Date.now() - startTime,
     }
   }

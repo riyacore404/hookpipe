@@ -38,6 +38,15 @@ export type EventsResponse = {
   limit: number
 }
 
+export type Destination = {
+  id: string
+  projectId: string
+  url: string
+  label: string | null
+  isActive: boolean
+  createdAt: string
+}
+
 export type DeliveryAttempt = {
   id: string
   eventId: string
@@ -48,6 +57,7 @@ export type DeliveryAttempt = {
   latencyMs: number | null
   attemptNumber: number
   attemptedAt: string
+  destination?: Destination
 }
 
 // --- API functions ---
@@ -71,4 +81,29 @@ export const eventsApi = {
 
   get: (id: string) =>
     api.get<Event & { deliveryAttempts: DeliveryAttempt[] }>(`/api/events/${id}`),
+}
+
+export const destinationsApi = {
+  list: (projectId: string) =>
+    api.get<Destination[]>(`/api/destinations?projectId=${projectId}`),
+
+  create: (data: { projectId: string; url: string; label?: string }) =>
+    api.post<Destination>('/api/destinations', data),
+
+  toggle: (id: string, isActive: boolean) =>
+    api.patch<Destination>(`/api/destinations/${id}`, { isActive }),
+
+  delete: (id: string) =>
+    api.delete(`/api/destinations/${id}`),
+}
+
+export const deliveriesApi = {
+  forEvent: (eventId: string) =>
+    api.get<DeliveryAttempt[]>(`/api/deliveries/event/${eventId}`),
+
+  forDestination: (destinationId: string) =>
+    api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`),
+
+  replay: (eventId: string) =>
+    api.post(`/api/deliveries/event/${eventId}/replay`),
 }

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 
 // hardcoded for now — Phase 4 makes this dynamic from the API
 const NAV_ITEMS = [
-  { label: 'Events', href: '/projects', dot: 'bg-blue-500' },
+  { label: 'Events', href: '', dot: 'bg-blue-500' },
   { label: 'Destinations', href: '/destinations', dot: 'bg-green-500' },
   { label: 'Settings', href: '/settings', dot: 'bg-gray-400' },
 ]
@@ -41,7 +41,7 @@ export default function Sidebar({ projectId }: Props) {
         {NAV_ITEMS.map((item) => {
           // build the full href with projectId if we have one
           const href = projectId
-            ? `/projects/${projectId}${item.href === '/projects' ? '' : item.href}`
+            ? `/projects/${projectId}${item.href}`
             : item.href
 
           const isActive = pathname === href ||
@@ -51,11 +51,10 @@ export default function Sidebar({ projectId }: Props) {
             <Link
               key={item.label}
               href={href}
-              className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm mb-0.5 transition-colors ${
-                isActive
+              className={`flex items-center gap-2 px-2 py-2 rounded-md text-sm mb-0.5 transition-colors ${isActive
                   ? 'bg-gray-100 text-gray-900 font-medium'
                   : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.dot}`} />
               {item.label}

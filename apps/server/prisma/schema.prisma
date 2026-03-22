@@ -51,6 +51,7 @@ model Project {
   name           String
   environment    String   @default("development") // production | staging | development
   ingestKey      String   @unique @default(uuid()) @map("ingest_key")
+  signingSecret  String?  @map("signing_secret")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   organisation Organisation @relation(fields: [organisationId], references: [id])

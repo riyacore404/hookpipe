@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client'
 import { fanoutQueue } from '../queues/fanout.queue'
+import { verifySignature } from '../lib/hmac'
 
 export async function ingestRoutes(app: FastifyInstance) {
   app.post<{
@@ -17,6 +18,27 @@ export async function ingestRoutes(app: FastifyInstance) {
     // Unknown key — return 404 but don't leak details
     if (!project) {
       return reply.status(404).send({ error: 'Not found' })
+    }
+
+    // optional inbound signature verification
+    // only runs if the project has a signingSecret configured
+    // this is how you verify webhooks genuinely came from Stripe/GitHub
+    if (project.signingSecret) {
+      const signatureHeader =
+        request.headers['x-hookpipe-signature'] as string ||
+        request.headers['stripe-signature'] as string ||
+        request.headers['x-hub-signature-256'] as string
+
+      if (!signatureHeader) {
+        return reply.status(401).send({ error: 'Missing signature header' })
+      }
+
+      const rawBody = JSON.stringify(request.body)
+      const valid = verifySignature(rawBody, signatureHeader, project.signingSecret)
+
+      if (!valid) {
+        return reply.status(401).send({ error: 'Invalid signature' })
+      }
     }
 
     // 2. Save the raw event immediately — before anything else

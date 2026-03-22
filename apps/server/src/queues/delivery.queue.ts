@@ -1,5 +1,5 @@
 import { Queue } from 'bullmq'
-import { createRedisClient } from '../lib/redis'
+import { env } from '../config/env.js'
 
 export type DeliveryJobData = {
   eventId: string
@@ -9,12 +9,15 @@ export type DeliveryJobData = {
 }
 
 export const deliveryQueue = new Queue<DeliveryJobData>('delivery', {
-  connection: createRedisClient(),
+  connection: {
+    url: env.REDIS_URL,
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  },
   defaultJobOptions: {
     attempts: 5,
     backoff: {
-      type: 'exponential',
-      delay: 60_000, // 1 minute base — doubles each retry
+      type: 'custom',
     },
     removeOnComplete: 500,
     removeOnFail: 1000,

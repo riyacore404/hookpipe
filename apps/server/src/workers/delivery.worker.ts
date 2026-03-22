@@ -45,6 +45,18 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
   {
     connection: createRedisClient(),
     concurrency: 20,
+    settings: {
+      // custom backoff — attempt number maps to delay in ms
+      backoffStrategy: (attemptsMade: number) => {
+        const delays: Record<number, number> = {
+          1: 60_000,        // 1 minute
+          2: 300_000,       // 5 minutes
+          3: 1_800_000,     // 30 minutes
+          4: 7_200_000,     // 2 hours
+        }
+        return delays[attemptsMade] ?? 7_200_000
+      },
+    },
   }
 )
 

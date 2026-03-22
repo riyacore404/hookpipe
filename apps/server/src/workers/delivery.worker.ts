@@ -1,7 +1,13 @@
 import { Worker, type Job } from 'bullmq'
-import { createRedisClient } from '../lib/redis.js'
-import { attemptDelivery, logDeliveryAttempt, markDeliveryDead } from '../services/delivery.service.js'
 import { db } from '../db/client.js'
+import { createRedisClient } from '../lib/redis.js'
+import {
+  attemptDelivery,
+  logDeliveryAttempt,
+  markDeliveryDead,
+} from '../services/delivery.service.js'
+import { applyTransforms } from '../services/transform.service.js'
+import { buildSignatureHeader } from '../lib/hmac.js'
 import type { DeliveryJobData } from '../queues/delivery.queue.js'
 
 export const deliveryWorker = new Worker<DeliveryJobData>(
@@ -11,25 +17,57 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
 
     console.log(`[delivery] attempt ${attemptNumber} → ${destinationUrl}`)
 
-    // fetch payload from db
     const event = await db.event.findUnique({
       where: { id: eventId },
     })
 
     if (!event) {
-      // don't retry — event genuinely doesn't exist
       throw new Error(`Event ${eventId} not found — skipping`)
     }
 
-    // run the actual HTTP delivery
+    // fetch destination to get signing secret
+    const destination = await db.destination.findUnique({
+      where: { id: destinationId },
+    })
+
+    if (!destination) {
+      throw new Error(`Destination ${destinationId} not found — skipping`)
+    }
+
+    // start with the raw payload
+    let payload = event.payload as Record<string, unknown>
+
+    // apply transforms if any exist (Phase 3 — stored in destination config)
+    // for now transforms are empty — UI to configure comes in this phase
+    // this is the hook point — transforms will be added here
+    payload = applyTransforms(payload, [])
+
+    // build the payload string for signing
+    const payloadString = JSON.stringify(payload)
+
+    // build headers — sign if destination has a secret configured
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Hookpipe-Event-Id': eventId,
+      'X-Hookpipe-Attempt': String(attemptNumber),
+    }
+
+    if (destination.secret) {
+      headers['X-Hookpipe-Signature'] = buildSignatureHeader(
+        payloadString,
+        destination.secret
+      )
+    }
+
+    // deliver
     const result = await attemptDelivery(
       destinationUrl,
-      event.payload,
+      payload,
       eventId,
-      attemptNumber
+      attemptNumber,
+      headers  // pass custom headers through
     )
 
-    // always log the attempt — success or failure
     await logDeliveryAttempt(eventId, destinationId, attemptNumber, result)
 
     console.log(
@@ -37,22 +75,20 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
       `→ ${destinationUrl} in ${result.latencyMs}ms`
     )
 
-    // if failed — throw so BullMQ schedules the retry
     if (result.status === 'failed') {
-      throw new Error(`Delivery failed — status ${result.httpStatus ?? 'network error'}`)
+      throw new Error(`Delivery failed — ${result.httpStatus ?? 'network error'}`)
     }
   },
   {
     connection: createRedisClient(),
     concurrency: 20,
     settings: {
-      // custom backoff — attempt number maps to delay in ms
       backoffStrategy: (attemptsMade: number) => {
         const delays: Record<number, number> = {
-          1: 60_000,        // 1 minute
-          2: 300_000,       // 5 minutes
-          3: 1_800_000,     // 30 minutes
-          4: 7_200_000,     // 2 hours
+          1: 60_000,
+          2: 300_000,
+          3: 1_800_000,
+          4: 7_200_000,
         }
         return delays[attemptsMade] ?? 7_200_000
       },
@@ -60,21 +96,11 @@ export const deliveryWorker = new Worker<DeliveryJobData>(
   }
 )
 
-// fires when ALL retries are exhausted — this is the dead letter handler
 deliveryWorker.on('failed', async (job, err) => {
   if (!job) return
-
   const isExhausted = job.attemptsMade >= (job.opts.attempts ?? 1)
-
   if (isExhausted) {
-    console.log(`[delivery] job ${job.id} exhausted all retries — marking dead`)
-
     const { eventId, destinationId, attemptNumber } = job.data
     await markDeliveryDead(eventId, destinationId, attemptNumber)
-  } else {
-    console.log(
-      `[delivery] job ${job.id} failed attempt ${job.attemptsMade} — ` +
-      `will retry (${err.message})`
-    )
   }
 })

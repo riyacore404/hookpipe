@@ -2,11 +2,12 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client'
 import { fanoutQueue } from '../queues/fanout.queue'
 import { verifySignature } from '../lib/hmac'
+import { rateLimitIngest } from '../middleware/ratelimit'
 
 export async function ingestRoutes(app: FastifyInstance) {
   app.post<{
     Params: { ingestKey: string }
-  }>('/:ingestKey', async (request, reply) => {
+  }>('/:ingestKey', { preHandler: rateLimitIngest }, async (request, reply) => {
 
     const { ingestKey } = request.params
 

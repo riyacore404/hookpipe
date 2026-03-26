@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client'
+import { requireAuthOrApiKey } from '../middleware/auth';
 
 export async function eventRoutes(app: FastifyInstance) {
 
   // List events for a project — paginated
   app.get<{
     Querystring: { projectId: string; page?: string; limit?: string }
-  }>('/', async (request) => {
+  }>('/', { preHandler: requireAuthOrApiKey }, async (request) => {
     const { projectId, page = '1', limit = '50' } = request.query
 
     const skip = (Number(page) - 1) * Number(limit)
@@ -25,7 +26,7 @@ export async function eventRoutes(app: FastifyInstance) {
   })
 
   // Get single event with its delivery attempts
-  app.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/:id', { preHandler: requireAuthOrApiKey }, async (request, reply) => {
     const event = await db.event.findUnique({
       where: { id: request.params.id },
       include: {

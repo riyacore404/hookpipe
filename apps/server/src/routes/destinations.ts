@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { z } from 'zod'
+import { requireAuthOrApiKey } from '../middleware/auth.js'
 
 const createSchema = z.object({
   projectId: z.string().uuid(),
@@ -19,6 +20,7 @@ export async function destinationRoutes(app: FastifyInstance) {
   // list all destinations for a project
   app.get<{ Querystring: { projectId: string } }>(
     '/',
+    { preHandler: requireAuthOrApiKey },
     async (request, reply) => {
       const { projectId } = request.query
 
@@ -36,7 +38,7 @@ export async function destinationRoutes(app: FastifyInstance) {
   )
 
   // create a destination
-  app.post('/', async (request, reply) => {
+  app.post('/', { preHandler: requireAuthOrApiKey }, async (request, reply) => {
     const body = createSchema.safeParse(request.body)
 
     if (!body.success) {
@@ -66,6 +68,7 @@ export async function destinationRoutes(app: FastifyInstance) {
   // get single destination
   app.get<{ Params: { id: string } }>(
     '/:id',
+    { preHandler: requireAuthOrApiKey },
     async (request, reply) => {
       const destination = await db.destination.findUnique({
         where: { id: request.params.id },
@@ -82,6 +85,7 @@ export async function destinationRoutes(app: FastifyInstance) {
   // update — toggle active, change url, change label
   app.patch<{ Params: { id: string } }>(
     '/:id',
+    { preHandler: requireAuthOrApiKey },
     async (request, reply) => {
       const body = updateSchema.safeParse(request.body)
 
@@ -102,6 +106,7 @@ export async function destinationRoutes(app: FastifyInstance) {
   // otherwise soft delete via isActive = false
   app.delete<{ Params: { id: string } }>(
     '/:id',
+    { preHandler: requireAuthOrApiKey },
     async (request, reply) => {
       const attempts = await db.deliveryAttempt.count({
         where: { destinationId: request.params.id },

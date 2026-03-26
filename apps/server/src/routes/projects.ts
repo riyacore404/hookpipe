@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client'
 import { z } from 'zod'
+import { requireAuthOrApiKey } from '../middleware/auth.js'
 
 const createProjectSchema = z.object({
   name: z.string().min(1).max(100),
@@ -11,7 +12,7 @@ const createProjectSchema = z.object({
 export async function projectRoutes(app: FastifyInstance) {
 
   // List all projects for an org
-  app.get<{ Querystring: { orgId: string } }>('/', async (request, reply) => {
+  app.get<{ Querystring: { orgId: string } }>('/', { preHandler: requireAuthOrApiKey }, async (request, reply) => {
     const { orgId } = request.query
     const projects = await db.project.findMany({
       where: { organisationId: orgId },
@@ -21,7 +22,7 @@ export async function projectRoutes(app: FastifyInstance) {
   })
 
   // Create a new project
-  app.post('/', async (request, reply) => {
+  app.post('/', { preHandler: requireAuthOrApiKey }, async (request, reply) => {
     const body = createProjectSchema.safeParse(request.body)
 
     if (!body.success) {
@@ -40,7 +41,7 @@ export async function projectRoutes(app: FastifyInstance) {
   })
 
   // Get single project
-  app.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/:id', { preHandler: requireAuthOrApiKey }, async (request, reply) => {
     const project = await db.project.findUnique({
       where: { id: request.params.id },
     })

@@ -1,12 +1,14 @@
 import type { FastifyInstance } from 'fastify'
 import { db } from '../db/client.js'
 import { deliveryQueue } from '../queues/delivery.queue.js'
+import { requireAuthOrApiKey } from '../middleware/auth.js'
 
 export async function deliveryRoutes(app: FastifyInstance) {
 
   // get all delivery attempts for an event
   app.get<{ Params: { eventId: string } }>(
     '/event/:eventId',
+    { preHandler: requireAuthOrApiKey }, 
     async (request, reply) => {
       const attempts = await db.deliveryAttempt.findMany({
         where: { eventId: request.params.eventId },
@@ -21,6 +23,7 @@ export async function deliveryRoutes(app: FastifyInstance) {
   // manual replay — re-enqueue delivery for all active destinations
   app.post<{ Params: { eventId: string } }>(
     '/event/:eventId/replay',
+    { preHandler: requireAuthOrApiKey },
     async (request, reply) => {
       const event = await db.event.findUnique({
         where: { id: request.params.eventId },
@@ -63,6 +66,7 @@ export async function deliveryRoutes(app: FastifyInstance) {
   // add this route to fetch delivery attempts for a specific destination (for the sparkline)
   app.get<{ Params: { destinationId: string } }>(
     '/destination/:destinationId',
+    { preHandler: requireAuthOrApiKey },
     async (request) => {
       const attempts = await db.deliveryAttempt.findMany({
         where: { destinationId: request.params.destinationId },

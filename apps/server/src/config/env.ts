@@ -13,7 +13,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
 
   // Auth (Clerk — P4)
-  CLERK_SECRET_KEY: z.string().optional(),
+  CLERK_SECRET_KEY: z.string().min(1),
 })
 
 const parsed = envSchema.safeParse(process.env)

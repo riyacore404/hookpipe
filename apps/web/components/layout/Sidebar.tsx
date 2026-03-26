@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import OrgSwitcher from './OrgSwitcher'
 
 // hardcoded for now — Phase 4 makes this dynamic from the API
 const NAV_ITEMS = [
@@ -25,13 +26,7 @@ export default function Sidebar({ projectId }: Props) {
         <span className="text-sm font-semibold text-gray-900">hookpipe</span>
       </div>
 
-      {/* project switcher placeholder — Phase 4 makes this real */}
-      <div className="mx-2 my-3 px-3 py-2 rounded-lg border border-gray-200 text-xs text-gray-600 flex justify-between items-center cursor-pointer hover:bg-gray-50">
-        <span className="truncate">
-          {projectId ? `Project: ${projectId.slice(0, 8)}...` : 'Select project'}
-        </span>
-        <span className="text-gray-400 ml-1">▼</span>
-      </div>
+      <OrgSwitcher projectId={projectId} />
 
       {/* nav items */}
       <nav className="flex-1 px-2">

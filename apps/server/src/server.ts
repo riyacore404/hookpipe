@@ -7,7 +7,12 @@ import { projectRoutes } from './routes/projects.js'
 import { eventRoutes } from './routes/events.js'
 import { destinationRoutes } from './routes/destinations.js'
 import { deliveryRoutes } from './routes/deliveries.js'
+<<<<<<< HEAD
 import { filterRuleRoutes } from './routes/filterrules.js'
+=======
+import { apiKeyRoutes } from './routes/apikeys.js'
+import { organisationRoutes } from './routes/organisations.js'
+>>>>>>> 6ab66a2 (feat(server): add organisation and member routes with role enforcement)
 
 const app = Fastify({
   logger: {
@@ -36,7 +41,12 @@ await app.register(projectRoutes, { prefix: '/api/projects' })
 await app.register(eventRoutes, { prefix: '/api/events' })
 await app.register(destinationRoutes, { prefix: '/api/destinations' })
 await app.register(deliveryRoutes, { prefix: '/api/deliveries' })
+<<<<<<< HEAD
 await app.register(filterRuleRoutes, { prefix: '/api/filter-rules' })
+=======
+await app.register(apiKeyRoutes, { prefix: '/api/api-keys' })
+await app.register(organisationRoutes, { prefix: '/api/organisations' })
+>>>>>>> 6ab66a2 (feat(server): add organisation and member routes with role enforcement)
 
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' })

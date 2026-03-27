@@ -35,7 +35,9 @@ export default async function HomePage() {
     }
 
     redirect(`/projects/${projects[0].id}/events`)
-  } catch {
-    redirect('/login')
+  } catch (err) {
+    // Don't redirect to /login — that creates an infinite loop
+    // if the API is down or returns a non-auth error
+    redirect('/onboarding') // or render an error page
   }
 }

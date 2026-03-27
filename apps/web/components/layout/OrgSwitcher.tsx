@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { api } from '@/lib/api'
 
@@ -19,10 +19,11 @@ export default function OrgSwitcher({ projectId }: Props) {
   const [orgs, setOrgs] = useState<Org[]>([])
   const [current, setCurrent] = useState<Org | null>(null)
 
+  const getTokenRef = useRef(getToken)
   useEffect(() => {
     async function fetchOrgs() {
       try {
-        const token = await getToken()
+        const token = await getTokenRef.current()
         const res = await api.get('/api/organisations', {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -33,7 +34,7 @@ export default function OrgSwitcher({ projectId }: Props) {
       }
     }
     fetchOrgs()
-  }, [getToken])
+  }, [])
 
   return (
     <div className="mx-2 my-3 px-3 py-2 rounded-lg border border-gray-200 text-xs text-gray-600 flex justify-between items-center cursor-pointer hover:bg-gray-50">

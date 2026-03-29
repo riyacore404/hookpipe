@@ -1,48 +1,47 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { api } from '@/lib/api'
 
-type Org = {
-  id: string
-  name: string
-  role: string
-}
+type Org = { id: string; name: string; role: string }
 
-type Props = {
-  projectId?: string
-}
+// module-level cache — survives page transitions within the same session
+let cachedOrg: Org | null = null
 
-export default function OrgSwitcher({ projectId }: Props) {
-  const { getToken } = useAuth()
-  const [orgs, setOrgs] = useState<Org[]>([])
-  const [current, setCurrent] = useState<Org | null>(null)
+export default function OrgSwitcher() {
+  const { getToken, isLoaded, isSignedIn } = useAuth()
+  const [current, setCurrent] = useState<Org | null>(cachedOrg)
 
-  const getTokenRef = useRef(getToken)
   useEffect(() => {
-    async function fetchOrgs() {
+    if (!isLoaded || !isSignedIn) return
+    if (cachedOrg) return  // already have it — don't re-fetch
+
+    async function fetchOrg() {
       try {
-        const token = await getTokenRef.current()
+        const token = await getToken()
+        if (!token) return
+
         const res = await api.get('/api/organisations', {
           headers: { Authorization: `Bearer ${token}` },
         })
-        setOrgs(res.data)
-        if (res.data.length > 0) setCurrent(res.data[0])
+        if (res.data.length > 0) {
+          cachedOrg = res.data[0]
+          setCurrent(cachedOrg)
+        }
       } catch {
-        // not authed yet or no orgs
+        // silent — sidebar still renders without org name
       }
     }
-    fetchOrgs()
-  }, [])
+
+    fetchOrg()
+  }, [isLoaded, isSignedIn, getToken])
 
   return (
-    <div className="mx-2 my-3 px-3 py-2 rounded-lg border border-gray-200 text-xs text-gray-600 flex justify-between items-center cursor-pointer hover:bg-gray-50">
+    <div className="mx-2 my-3 px-3 py-2 rounded-lg border border-gray-200 text-xs text-gray-600 flex justify-between items-center">
       <div className="flex items-center gap-2 min-w-0">
         <div className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0" />
-        <span className="truncate">
-          {current ? current.name : 'No organisation'}
-        </span>
+        <span className="truncate">{current ? current.name : '—'}</span>
       </div>
       <span className="text-gray-400 ml-1 flex-shrink-0">▼</span>
     </div>

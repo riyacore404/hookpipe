@@ -1,6 +1,7 @@
 import { createClerkClient } from '@clerk/fastify'
 import { verifyToken } from '@clerk/backend'
 import type { FastifyRequest, FastifyReply } from 'fastify'
+import { createHash } from 'crypto'
 import { db } from '../db/client.js'
 import { env } from '../config/env.js'
 
@@ -21,17 +22,16 @@ export async function requireAuth(
     // support both Bearer token (API) and session token (web)
     const token = authHeader?.startsWith('Bearer ')
       ? authHeader.slice(7)
-      : request.headers['x-session-token'] as string
+      : (request.headers['x-session-token'] as string)
 
     if (!token) {
       reply.status(401).send({ error: 'Unauthorised — no token provided' })
       return
     }
 
-    // verify with Clerk
-    const payload = await verifyToken(token, { secretKey: env.CLERK_SECRET_KEY })
-
-    // attach to request for use in route handlers
+    const payload = await verifyToken(token, {
+      secretKey: env.CLERK_SECRET_KEY,
+    })
     ;(request as any).userId = payload.sub
     ;(request as any).clerkPayload = payload
 
@@ -60,7 +60,6 @@ export async function requireApiKey(
 
     const storedKey = await db.apiKey.findUnique({
       where: { keyHash },
-      include: { user: true },
     })
 
     if (!storedKey || storedKey.revokedAt) {
@@ -91,15 +90,10 @@ export async function requireAuthOrApiKey(
   const hasApiKey = !!request.headers['x-api-key']
   const hasAuth = !!request.headers.authorization
 
-  if (hasApiKey) {
-    return requireApiKey(request, reply)
-  }
+  if (hasApiKey) return requireApiKey(request, reply)
+  if (hasAuth) return requireAuth(request, reply)
 
-  if (hasAuth) {
-    return requireAuth(request, reply)
-  }
-
-  reply.status(401).send({ error: 'Unauthorised — provide a Bearer token or x-api-key header' })
+  reply.status(401).send({ error: 'Unauthorised — provide Bearer token or x-api-key' })
 }
 
 // role enforcement helper
@@ -111,21 +105,15 @@ export async function requireOrgRole(
 ): Promise<{ allowed: boolean; role: string | null }> {
   const membership = await db.organisationMember.findUnique({
     where: {
-      organisationId_userId: {
-        organisationId,
-        userId,
-      },
+      organisationId_userId: { organisationId, userId },
     },
   })
 
   if (!membership) return { allowed: false, role: null }
 
-  const roleHierarchy = { member: 0, admin: 1, owner: 2 }
-  const userLevel = roleHierarchy[membership.role as keyof typeof roleHierarchy] ?? -1
-  const requiredLevel = roleHierarchy[minimumRole]
+  const hierarchy = { member: 0, admin: 1, owner: 2 }
+  const userLevel = hierarchy[membership.role as keyof typeof hierarchy] ?? -1
+  const requiredLevel = hierarchy[minimumRole]
 
-  return {
-    allowed: userLevel >= requiredLevel,
-    role: membership.role,
-  }
+  return { allowed: userLevel >= requiredLevel, role: membership.role }
 }

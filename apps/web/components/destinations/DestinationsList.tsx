@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { destinationsApi, type Destination } from '@/lib/api'
 import HealthSparkline from './HealthSparkline'
 import FilterRuleBuilder from './FilterRuleBuilder'
+import { getToken, useAuth } from '@clerk/nextjs'
 
 function EnvironmentDot({ isActive }: { isActive: boolean }) {
   return (
@@ -15,6 +16,7 @@ function EnvironmentDot({ isActive }: { isActive: boolean }) {
 type Props = { projectId: string }
 
 export default function DestinationsList({ projectId }: Props) {
+  const { getToken } = useAuth()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [url, setUrl] = useState('')
@@ -22,11 +24,18 @@ export default function DestinationsList({ projectId }: Props) {
 
   const { data: destinations, isLoading } = useQuery({
     queryKey: ['destinations', projectId],
-    queryFn: () => destinationsApi.list(projectId).then(r => r.data),
+    queryFn: async () => {
+  const token = await getToken()
+  const res = await destinationsApi.list(projectId, token ?? undefined)
+  return res.data
+},
   })
 
   const createMutation = useMutation({
-    mutationFn: () => destinationsApi.create({ projectId, url, label }),
+    mutationFn: async () => {
+      const token = await getToken()
+      return destinationsApi.create({ projectId, url, label }, token ?? undefined)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['destinations', projectId] })
       setUrl('')
@@ -36,8 +45,10 @@ export default function DestinationsList({ projectId }: Props) {
   })
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
-      destinationsApi.toggle(id, isActive),
+    mutationFn: async (params: { id: string; isActive: boolean }) => {
+      const token = await getToken()
+      return destinationsApi.toggle(params.id, params.isActive, token ?? undefined)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['destinations', projectId] })
     },

@@ -73,56 +73,86 @@ export type FilterRule = {
 // components call these, never axios directly
 
 export const projectsApi = {
-  list: (orgId: string) =>
-    api.get<Project[]>(`/api/projects?orgId=${orgId}`),
+  list: (orgId: string, token?: string) =>
+    api.get<Project[]>(`/api/projects?orgId=${orgId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  create: (data: { name: string; environment: string; organisationId: string }) =>
-    api.post<Project>('/api/projects', data),
+  create: (data: { name: string; environment: string; organisationId: string }, token?: string) =>
+    api.post<Project>('/api/projects', data, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  get: (id: string) =>
-    api.get<Project>(`/api/projects/${id}`),
+  get: (id: string, token?: string) =>
+    api.get<Project>(`/api/projects/${id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 }
 
 export const eventsApi = {
-  list: (projectId: string, page = 1) =>
-    api.get<EventsResponse>(`/api/events?projectId=${projectId}&page=${page}`),
+  list: (projectId: string, page = 1, token?: string) =>
+    api.get<EventsResponse>(`/api/events?projectId=${projectId}&page=${page}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  get: (id: string) =>
-    api.get<Event & { deliveryAttempts: DeliveryAttempt[] }>(`/api/events/${id}`),
+  get: (id: string, token?: string) =>
+    api.get<Event & { deliveryAttempts: DeliveryAttempt[] }>(`/api/events/${id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 }
 
 export const destinationsApi = {
-  list: (projectId: string) =>
-    api.get<Destination[]>(`/api/destinations?projectId=${projectId}`),
+  list: (projectId: string, token?: string) =>
+    api.get<Destination[]>(`/api/destinations?projectId=${projectId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  create: (data: { projectId: string; url: string; label?: string }) =>
-    api.post<Destination>('/api/destinations', data),
+  create: (data: { projectId: string; url: string; label?: string }, token?: string) =>
+    api.post<Destination>('/api/destinations', data, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  toggle: (id: string, isActive: boolean) =>
-    api.patch<Destination>(`/api/destinations/${id}`, { isActive }),
+  toggle: (id: string, isActive: boolean, token?: string) =>
+    api.patch<Destination>(`/api/destinations/${id}`, { isActive }, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  delete: (id: string) =>
-    api.delete(`/api/destinations/${id}`),
+  delete: (id: string, token?: string) =>
+    api.delete(`/api/destinations/${id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 }
 
 export const deliveriesApi = {
-  forEvent: (eventId: string) =>
-    api.get<DeliveryAttempt[]>(`/api/deliveries/event/${eventId}`),
+  forEvent: (eventId: string, token?: string) =>
+    api.get<DeliveryAttempt[]>(`/api/deliveries/event/${eventId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  forDestination: (destinationId: string) =>
-    api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`),
+  forDestination: (destinationId: string, token?: string) =>
+    api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  replay: (eventId: string) =>
-    api.post(`/api/deliveries/event/${eventId}/replay`),
+  replay: (eventId: string, token?: string) =>
+    api.post(`/api/deliveries/event/${eventId}/replay`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 }
 
 export const filterRulesApi = {
-  list: (destinationId: string) =>
-    api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`),
+  list: (destinationId: string, token?: string) =>
+    api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  create: (data: { destinationId: string; field: string; operator: string; value: string }) =>
-    api.post<FilterRule>('/api/filter-rules', data),
+  create: (data: { destinationId: string; field: string; operator: string; value: string }, token?: string) =>
+    api.post<FilterRule>('/api/filter-rules', data, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 
-  delete: (id: string) =>
-    api.delete(`/api/filter-rules/${id}`),
+  delete: (id: string, token?: string) =>
+    api.delete(`/api/filter-rules/${id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
 }

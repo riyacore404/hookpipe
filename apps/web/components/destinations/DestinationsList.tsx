@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { destinationsApi, type Destination } from '@/lib/api'
 import HealthSparkline from './HealthSparkline'
 import FilterRuleBuilder from './FilterRuleBuilder'
-import { getToken, useAuth } from '@clerk/nextjs'
+import AlertRuleBuilder from './AlertRuleBuilder'
+import { useAuth } from '@clerk/nextjs'
 
 function EnvironmentDot({ isActive }: { isActive: boolean }) {
   return (
@@ -55,9 +56,9 @@ export default function DestinationsList({ projectId }: Props) {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => destinationsApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['destinations', projectId] })
+    mutationFn: async (id: string) => {
+      const token = await getToken()
+      return destinationsApi.delete(id, token ?? undefined)
     },
   })
 
@@ -162,6 +163,7 @@ export default function DestinationsList({ projectId }: Props) {
 
               {/* filter rules — shown below each destination */}
               <FilterRuleBuilder destinationId={dest.id} />
+              <AlertRuleBuilder destinationId={dest.id} />
             </div>
           ))}
         </div>

@@ -14,6 +14,12 @@ const envSchema = z.object({
 
   // Auth (Clerk — P4)
   CLERK_SECRET_KEY: z.string().min(1),
+
+  // Phase 5 additions
+  // SLACK_WEBHOOK_URL: z.string().url().optional(),
+  SLACK_WEBHOOK_URL: z.string().url().optional().or(z.literal('')),
+  
+  ALERT_EVAL_INTERVAL_MS: z.coerce.number().default(60_000),
 })
 
 const parsed = envSchema.safeParse(process.env)

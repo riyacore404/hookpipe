@@ -16,6 +16,8 @@ export default function Sidebar({ projectId }: Props) {
   const projectNav = [
     { label: 'Events',       href: projectBase ? `${projectBase}/events`       : null, dot: 'bg-blue-500' },
     { label: 'Destinations', href: projectBase ? `${projectBase}/destinations` : null, dot: 'bg-green-500' },
+    { label: 'Health',       href: projectBase ? `${projectBase}/health`       : null, dot: 'bg-amber-400' },
+    { label: 'Analytics',    href: projectBase ? `${projectBase}/analytics`    : null, dot: 'bg-purple-400' },
   ]
 
   const accountNav = [

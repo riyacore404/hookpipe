@@ -1,32 +1,39 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import { api } from '@/lib/api'
+import { db } from '@/lib/db'
 
 export default async function HomePage() {
-  const { getToken } = await auth()
-  const token = await getToken()
+  const { userId } = await auth()
 
-  if (!token) redirect('/login')
+  if (!userId) {
+    redirect('/login')
+  }
 
-  try {
-    const orgsRes = await api.get('/api/organisations', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const orgs = orgsRes.data
+  const memberships = await db.organisationMember.findMany({
+    where: { userId },
+    include: {
+      organisation: {
+        include: {
+          projects: {
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  })
 
-    if (!orgs || orgs.length === 0) redirect('/onboarding')
-
-    const projectsRes = await api.get(`/api/projects?orgId=${orgs[0].id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    const projects = projectsRes.data
-
-    if (!projects || projects.length === 0) redirect('/onboarding')
-
-    redirect(`/projects/${projects[0].id}/events`)
-  } catch (err: any) {
-    // Log the actual error so we can see what's failing
-    console.error('[dashboard root] fetch failed:', err?.message, err?.response?.status, err?.response?.data)
+  if (memberships.length === 0) {
     redirect('/onboarding')
   }
+
+  const membership = memberships.find(m => m.organisation.projects.length > 0)
+    ?? memberships[0]
+
+  if (membership.organisation.projects.length === 0) {
+    redirect('/onboarding')
+  }
+
+  redirect(`/projects/${membership.organisation.projects[0].id}/events`)
 }

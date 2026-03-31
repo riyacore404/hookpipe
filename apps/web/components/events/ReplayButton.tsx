@@ -1,16 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { deliveriesApi } from '@/lib/api'
+import { useApi } from '@/lib/api'
 
 export default function ReplayButton({ eventId }: { eventId: string }) {
+  const api = useApi()
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
 
   async function handleReplay() {
     setLoading(true)
     try {
-      await deliveriesApi.replay(eventId)
+      await api.post(`/api/deliveries/event/${eventId}/replay`)
       setDone(true)
       setTimeout(() => setDone(false), 3000)
     } catch (err) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { deliveriesApi, type DeliveryAttempt } from '@/lib/api'
+import { useApi, type DeliveryAttempt } from '@/lib/api'
 
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -26,9 +26,11 @@ function formatTime(iso: string) {
 type Props = { eventId: string }
 
 export default function DeliveryTimeline({ eventId }: Props) {
+  const api = useApi()
+
   const { data: attempts, isLoading } = useQuery({
     queryKey: ['deliveries', eventId],
-    queryFn: () => deliveriesApi.forEvent(eventId).then(r => r.data),
+    queryFn: () => api.get<DeliveryAttempt[]>(`/api/deliveries/event/${eventId}`).then(r => r.data),
     refetchInterval: 5_000,
   })
 
@@ -48,16 +50,12 @@ export default function DeliveryTimeline({ eventId }: Props) {
     <div className="flex flex-col gap-0">
       {attempts.map((attempt: DeliveryAttempt, i: number) => (
         <div key={attempt.id} className="flex gap-3">
-
-          {/* timeline line */}
           <div className="flex flex-col items-center">
             <StatusDot status={attempt.status} />
             {i < attempts.length - 1 && (
               <div className="w-px flex-1 bg-gray-100 my-1" />
             )}
           </div>
-
-          {/* attempt details */}
           <div className="pb-4 flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-800">
@@ -65,31 +63,23 @@ export default function DeliveryTimeline({ eventId }: Props) {
               </span>
               {attempt.httpStatus && (
                 <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${
-                  attempt.httpStatus < 300
-                    ? 'bg-green-50 text-green-700'
-                    : 'bg-red-50 text-red-700'
+                  attempt.httpStatus < 300 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                 }`}>
                   {attempt.httpStatus}
                 </span>
               )}
               {attempt.latencyMs && (
-                <span className="text-xs text-gray-400">
-                  {attempt.latencyMs}ms
-                </span>
+                <span className="text-xs text-gray-400">{attempt.latencyMs}ms</span>
               )}
               <span className="text-xs text-gray-400 ml-auto">
                 {formatTime(attempt.attemptedAt)}
               </span>
             </div>
-
-            {/* destination url */}
             {attempt.destination && (
               <p className="text-xs text-gray-400 font-mono truncate mt-0.5">
                 → {attempt.destination.url}
               </p>
             )}
-
-            {/* response body snippet */}
             {attempt.responseBody && (
               <pre className="mt-1.5 text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1.5 text-gray-600 overflow-x-auto whitespace-pre-wrap break-all">
                 {attempt.responseBody.slice(0, 200)}

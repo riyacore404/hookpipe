@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { filterRulesApi, type FilterRule } from '@/lib/api'
+import { useApi, type FilterRule } from '@/lib/api'
 
 const OPERATORS = [
   { value: 'equals', label: 'equals' },
@@ -15,12 +15,12 @@ const OPERATORS = [
   { value: 'not_exists', label: 'does not exist' },
 ]
 
-// operators that don't need a value input
 const NO_VALUE_OPERATORS = ['exists', 'not_exists']
 
 type Props = { destinationId: string }
 
 export default function FilterRuleBuilder({ destinationId }: Props) {
+  const api = useApi()
   const queryClient = useQueryClient()
   const [field, setField] = useState('')
   const [operator, setOperator] = useState('equals')
@@ -29,11 +29,13 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
 
   const { data: rules } = useQuery({
     queryKey: ['filter-rules', destinationId],
-    queryFn: () => filterRulesApi.list(destinationId).then(r => r.data),
+    queryFn: () =>
+      api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`).then(r => r.data),
   })
 
   const createMutation = useMutation({
-    mutationFn: () => filterRulesApi.create({ destinationId, field, operator, value }),
+    mutationFn: () =>
+      api.post<FilterRule>('/api/filter-rules', { destinationId, field, operator, value }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['filter-rules', destinationId] })
       setField('')
@@ -44,7 +46,7 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => filterRulesApi.delete(id),
+    mutationFn: (id: string) => api.delete(`/api/filter-rules/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['filter-rules', destinationId] })
     },
@@ -54,8 +56,6 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
 
   return (
     <div className="mt-3">
-
-      {/* existing rules */}
       {rules && rules.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-3">
           {rules.map((rule: FilterRule) => (
@@ -79,7 +79,6 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
         </div>
       )}
 
-      {/* add rule form */}
       {showForm ? (
         <div className="flex flex-col gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
           <div className="flex gap-2">
@@ -135,9 +134,7 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
       )}
 
       {rules && rules.length === 0 && !showForm && (
-        <p className="text-xs text-gray-400 mt-1">
-          No filters — all events delivered
-        </p>
+        <p className="text-xs text-gray-400 mt-1">No filters — all events delivered</p>
       )}
     </div>
   )

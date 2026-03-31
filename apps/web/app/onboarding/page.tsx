@@ -27,6 +27,8 @@ export default function OnboardingPage() {
       )
       const org = orgRes.data
 
+      localStorage.setItem('hookpipe_active_org', org.id)
+
       const projectRes = await api.post(
         '/api/projects',
         { name: 'My first project', environment: 'development', organisationId: org.id },
@@ -34,7 +36,7 @@ export default function OnboardingPage() {
       )
       const project = projectRes.data
 
-      router.push(`/projects/${project.id}/events`)
+      router.replace(`/projects/${project.id}/events`)
     } catch {
       setError('Something went wrong. Try again.')
       setLoading(false)

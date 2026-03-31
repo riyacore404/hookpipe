@@ -1,25 +1,24 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { deliveriesApi, type DeliveryAttempt } from '@/lib/api'
+import { useApi, type DeliveryAttempt } from '@/lib/api'
 
 type Props = { destinationId: string }
 
 export default function HealthSparkline({ destinationId }: Props) {
+  const api = useApi()
+
   const { data: attempts } = useQuery({
     queryKey: ['deliveries-dest', destinationId],
     queryFn: () =>
-      deliveriesApi.forDestination(destinationId).then(r => r.data),
+      api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`).then(r => r.data),
     staleTime: 30_000,
   })
 
   if (!attempts || attempts.length === 0) {
-    return (
-      <span className="text-xs text-gray-300">no data</span>
-    )
+    return <span className="text-xs text-gray-300">no data</span>
   }
 
-  // take last 7 attempts
   const recent = attempts.slice(-7)
 
   return (
@@ -36,7 +35,6 @@ export default function HealthSparkline({ destinationId }: Props) {
               : 'bg-red-400'
           }`}
           style={{
-            // taller bar = faster response, shorter = slow/failed
             height: attempt.status === 'success'
               ? `${Math.max(40, Math.min(100, 100 - (attempt.latencyMs ?? 0) / 50))}%`
               : '30%',

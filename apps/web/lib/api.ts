@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useAuth } from '@clerk/nextjs'
 
 // base URL points to your Fastify server
 // NEXT_PUBLIC_ prefix makes it available in the browser
@@ -66,6 +67,40 @@ export type FilterRule = {
   field: string
   operator: string
   value: string
+}
+
+export type DestinationHealth = {
+  destinationId: string
+  url: string
+  label: string | null
+  isActive: boolean
+  successRate: number
+  avgLatencyMs: number | null
+  lastAttemptAt: string | null
+  status: 'healthy' | 'degraded' | 'down' | 'unknown'
+}
+
+export type ProjectAnalytics = {
+  eventsReceived: number
+  eventsDelivered: number
+  eventsFailed: number
+  avgLatencyMs: number | null
+  dailyCounts: { date: string; count: number }[]
+  deliveryRate: number
+}
+
+export type AlertRule = {
+  id: string
+  destinationId: string
+  metric: string
+  operator: string
+  threshold: number
+  windowMinutes: number
+  channel: string
+  channelTarget: string
+  isActive: boolean
+  lastFiredAt: string | null
+  createdAt: string
 }
 
 // --- API functions ---
@@ -155,4 +190,72 @@ export const filterRulesApi = {
     api.delete(`/api/filter-rules/${id}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     }),
+}
+
+export const alertRulesApi = {
+  list: (destinationId: string, token?: string) =>
+    api.get<AlertRule[]>(`/api/alert-rules/destination/${destinationId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
+
+  create: (data: {
+    destinationId: string
+    metric: string
+    operator: string
+    threshold: number
+    windowMinutes: number
+    channel: string
+    channelTarget: string
+  }, token?: string) =>
+    api.post<AlertRule>('/api/alert-rules', data, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
+
+  delete: (id: string, token?: string) =>
+    api.delete(`/api/alert-rules/${id}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
+}
+
+export const analyticsApi = {
+  health: (projectId: string, token?: string) =>
+    api.get<DestinationHealth[]>(`/api/analytics/health?projectId=${projectId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
+
+  project: (projectId: string, token?: string) =>
+    api.get<ProjectAnalytics>(`/api/analytics/project?projectId=${projectId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }),
+}
+
+export function useApi() {
+  const { getToken } = useAuth()
+
+  return {
+    async get<T>(url: string) {
+      const token = await getToken()
+      return api.get<T>(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    },
+    async post<T>(url: string, data?: unknown) {
+      const token = await getToken()
+      return api.post<T>(url, data, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    },
+    async patch<T>(url: string, data?: unknown) {
+      const token = await getToken()
+      return api.patch<T>(url, data, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    },
+    async delete(url: string) {
+      const token = await getToken()
+      return api.delete(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+    },
+  }
 }

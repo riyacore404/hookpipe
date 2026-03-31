@@ -87,11 +87,12 @@ export async function requireAuthOrApiKey(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  const hasApiKey = !!request.headers['x-api-key']
-  const hasAuth = !!request.headers.authorization
+  // Fastify lowercases all headers — these are the correct keys
+  const apiKey = request.headers['x-api-key'] as string | undefined
+  const authHeader = request.headers['authorization'] as string | undefined
 
-  if (hasApiKey) return requireApiKey(request, reply)
-  if (hasAuth) return requireAuth(request, reply)
+  if (apiKey) return requireApiKey(request, reply)
+  if (authHeader) return requireAuth(request, reply)
 
   reply.status(401).send({ error: 'Unauthorised — provide Bearer token or x-api-key' })
 }

@@ -90,6 +90,7 @@ model Destination {
   project          Project          @relation(fields: [projectId], references: [id])
   deliveryAttempts DeliveryAttempt[]
   filterRules      FilterRule[]
+  alertRules       AlertRule[]
 
   @@index([projectId])
   @@map("destinations")
@@ -143,4 +144,24 @@ model FilterRule {
 
   @@index([destinationId])
   @@map("filter_rules")
+}
+
+model AlertRule {
+  id             String   @id @default(uuid())
+  destinationId  String   @map("destination_id")
+  metric         String   // failure_rate | queue_depth | dead_letter_count
+  operator       String   // gt | lt
+  threshold      Float
+  windowMinutes  Int      @default(5) @map("window_minutes")
+  channel        String   // slack | email
+  channelTarget  String   @map("channel_target") // webhook URL or email address
+  isActive       Boolean  @default(true) @map("is_active")
+  lastFiredAt    DateTime? @map("last_fired_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  destination Destination @relation(fields: [destinationId], references: [id])
+
+  @@index([destinationId])
+  @@index([isActive])
+  @@map("alert_rules")
 }

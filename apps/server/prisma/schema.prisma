@@ -154,6 +154,7 @@ model AlertRule {
   threshold      Float
   windowMinutes  Int      @default(5) @map("window_minutes")
   channel        String   // slack | email
+  notifyUrl      String    @map("notify_url") @default("")
   channelTarget  String   @map("channel_target") // webhook URL or email address
   isActive       Boolean  @default(true) @map("is_active")
   lastFiredAt    DateTime? @map("last_fired_at") @db.Timestamptz

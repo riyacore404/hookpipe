@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useApi, type FilterRule } from '@/lib/api'
+import { useApi } from '@/hooks/useApi'
+import { type FilterRule } from '@/lib/api'
 
 const OPERATORS = [
   { value: 'equals', label: 'equals' },
@@ -20,8 +21,8 @@ const NO_VALUE_OPERATORS = ['exists', 'not_exists']
 type Props = { destinationId: string }
 
 export default function FilterRuleBuilder({ destinationId }: Props) {
-  const api = useApi()
   const queryClient = useQueryClient()
+  const { filterRulesApi } = useApi()
   const [field, setField] = useState('')
   const [operator, setOperator] = useState('equals')
   const [value, setValue] = useState('')
@@ -29,13 +30,11 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
 
   const { data: rules } = useQuery({
     queryKey: ['filter-rules', destinationId],
-    queryFn: () =>
-      api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`).then(r => r.data),
+    queryFn: () => filterRulesApi.list(destinationId).then(r => r.data),
   })
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.post<FilterRule>('/api/filter-rules', { destinationId, field, operator, value }),
+    mutationFn: () => filterRulesApi.create({ destinationId, field, operator, value }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['filter-rules', destinationId] })
       setField('')
@@ -46,7 +45,7 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/api/filter-rules/${id}`),
+    mutationFn: (id: string) => filterRulesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['filter-rules', destinationId] })
     },
@@ -59,15 +58,10 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
       {rules && rules.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-3">
           {rules.map((rule: FilterRule) => (
-            <div
-              key={rule.id}
-              className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-xs"
-            >
+            <div key={rule.id} className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-xs">
               <span className="font-mono text-blue-700">{rule.field}</span>
               <span className="text-blue-400">{rule.operator}</span>
-              {rule.value && (
-                <span className="font-mono text-blue-700">{rule.value}</span>
-              )}
+              {rule.value && <span className="font-mono text-blue-700">{rule.value}</span>}
               <button
                 onClick={() => deleteMutation.mutate(rule.id)}
                 className="ml-auto text-blue-300 hover:text-red-400 transition-colors"
@@ -125,10 +119,7 @@ export default function FilterRuleBuilder({ destinationId }: Props) {
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowForm(true)}
-          className="text-xs text-blue-500 hover:underline"
-        >
+        <button onClick={() => setShowForm(true)} className="text-xs text-blue-500 hover:underline">
           + Add filter rule
         </button>
       )}

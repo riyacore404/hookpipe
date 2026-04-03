@@ -1,17 +1,17 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useApi, type DeliveryAttempt } from '@/lib/api'
+import { useApi } from '@/hooks/useApi'
+import type { Destination, DeliveryAttempt } from '@/lib/api'
 
 type Props = { destinationId: string }
 
 export default function HealthSparkline({ destinationId }: Props) {
-  const api = useApi()
+  const { deliveriesApi } = useApi()
 
   const { data: attempts } = useQuery({
     queryKey: ['deliveries-dest', destinationId],
-    queryFn: () =>
-      api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`).then(r => r.data),
+    queryFn: () => deliveriesApi.forDestination(destinationId).then(r => r.data),
     staleTime: 30_000,
   })
 
@@ -28,11 +28,8 @@ export default function HealthSparkline({ destinationId }: Props) {
           key={attempt.id}
           title={`${attempt.status} — ${attempt.httpStatus ?? 'no response'}`}
           className={`w-2 rounded-sm ${
-            attempt.status === 'success'
-              ? 'bg-green-400'
-              : attempt.status === 'dead'
-              ? 'bg-gray-300'
-              : 'bg-red-400'
+            attempt.status === 'success' ? 'bg-green-400' :
+            attempt.status === 'dead' ? 'bg-gray-300' : 'bg-red-400'
           }`}
           style={{
             height: attempt.status === 'success'

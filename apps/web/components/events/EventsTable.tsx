@@ -1,91 +1,121 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useApi, type ProjectAnalytics } from '@/lib/api'
+import { useRouter } from 'next/navigation'
+import { useApi } from '@/hooks/useApi'
+import { type Event, type DeliveryAttempt } from '@/lib/api'
+import StatusBadge from './StatusBadge'
+
+function formatDate(iso: string) {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) +
+    ' · ' +
+    d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+}
+
+function getEventType(payload: Record<string, unknown>): string {
+  if (typeof payload.type === 'string') return payload.type
+  if (typeof payload.action === 'string') return payload.action
+  if (typeof payload.event === 'string') return payload.event
+  return 'unknown'
+}
+
+function deriveEventStatus(attempts: DeliveryAttempt[]): 'pending' | 'success' | 'failed' | 'dead' {
+  if (!attempts || attempts.length === 0) return 'pending'
+  if (attempts.some(a => a.status === 'dead')) return 'dead'
+  if (attempts.every(a => a.status === 'success')) return 'success'
+  if (attempts.some(a => a.status === 'failed')) return 'failed'
+  return 'pending'
+}
+
+function EventRow({ event, projectId }: { event: Event; projectId: string }) {
+  const router = useRouter()
+  const { deliveriesApi } = useApi()
+
+  const { data: attempts } = useQuery({
+    queryKey: ['deliveries', event.id],
+    queryFn: () => deliveriesApi.forEvent(event.id).then(r => r.data),
+    staleTime: 15_000,
+  })
+
+  const status = deriveEventStatus(attempts ?? [])
+
+  return (
+    <div
+      onClick={() => router.push(`/projects/${projectId}/events/${event.id}`)}
+      className="grid grid-cols-[140px_1fr_140px_90px_70px] px-4 py-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer items-center transition-colors last:border-b-0"
+    >
+      <span className="font-mono text-xs text-gray-500 truncate">
+        {event.id.slice(0, 8)}...
+      </span>
+      <span className="text-sm text-gray-800 truncate">
+        {getEventType(event.payload)}
+      </span>
+      <span className="text-xs text-gray-400">
+        {formatDate(event.ingestedAt)}
+      </span>
+      <StatusBadge status={status} />
+      <span className="text-xs text-blue-500 hover:underline">View →</span>
+    </div>
+  )
+}
 
 type Props = { projectId: string }
 
-export default function AnalyticsDashboard({ projectId }: Props) {
-  const api = useApi()
+export default function EventsTable({ projectId }: Props) {
+  const { eventsApi } = useApi()
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['analytics', projectId],
-    queryFn: () =>
-      api.get<ProjectAnalytics>(`/api/analytics/project?projectId=${projectId}`).then(r => r.data),
-    staleTime: 60_000,
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['events', projectId],
+    queryFn: () => eventsApi.list(projectId).then(r => r.data),
+    refetchInterval: 10_000,
   })
 
   if (isLoading) {
-    return <div className="text-sm text-gray-400">Loading analytics...</div>
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="text-sm text-gray-400">Loading events...</div>
+      </div>
+    )
   }
 
-  if (!data) return null
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 gap-3">
+        <div className="text-sm text-gray-500">Could not load events</div>
+        <button onClick={() => refetch()} className="text-xs text-blue-500 hover:underline">
+          Try again
+        </button>
+      </div>
+    )
+  }
 
-  const maxCount = Math.max(...data.dailyCounts.map(d => d.count), 1)
+  const events = data?.events ?? []
+
+  if (events.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 gap-2">
+        <div className="text-sm font-medium text-gray-700">No events yet</div>
+        <div className="text-xs text-gray-400">Send a POST to your ingest URL to see events here</div>
+        <code className="mt-2 text-xs bg-gray-100 px-3 py-1.5 rounded text-gray-600">
+          POST /ingest/your-ingest-key
+        </code>
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: 'Events received', value: data.eventsReceived.toLocaleString() },
-          { label: 'Delivered',       value: data.eventsDelivered.toLocaleString() },
-          { label: 'Failed',          value: data.eventsFailed.toLocaleString() },
-          { label: 'Delivery rate',   value: `${data.deliveryRate}%` },
-        ].map(stat => (
-          <div key={stat.label} className="bg-white border border-gray-100 rounded-lg px-4 py-3">
-            <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-            <p className="text-xl font-medium text-gray-900">{stat.value}</p>
-          </div>
+    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div className="grid grid-cols-[140px_1fr_140px_90px_70px] px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+        {['Event ID', 'Type', 'Received', 'Status', 'Actions'].map(h => (
+          <span key={h} className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">{h}</span>
         ))}
       </div>
-
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Events received — last 30 days
-          </p>
-        </div>
-        <div className="px-4 py-6">
-          {data.dailyCounts.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-4">No events in the last 30 days</p>
-          ) : (
-            <div className="flex items-end gap-1 h-32">
-              {data.dailyCounts.map(({ date, count }) => {
-                const pct = (count / maxCount) * 100
-                const label = new Date(date).toLocaleDateString('en-IN', {
-                  month: 'short', day: 'numeric',
-                })
-                return (
-                  <div key={date} className="flex flex-col items-center flex-1 gap-1">
-                    <div
-                      className="w-full bg-blue-400 rounded-t-sm transition-all"
-                      style={{ height: `${Math.max(pct, 4)}%` }}
-                      title={`${label}: ${count}`}
-                    />
-                    {data.dailyCounts.length <= 14 && (
-                      <span className="text-[9px] text-gray-400 -rotate-45 origin-top-left">
-                        {label}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-100 rounded-xl px-4 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Average delivery latency</p>
-          <p className="text-2xl font-medium text-gray-900">
-            {data.avgLatencyMs ? `${data.avgLatencyMs}ms` : '—'}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-500 mb-1">Period</p>
-          <p className="text-sm text-gray-700">Last 30 days</p>
-        </div>
+      {events.map((event: Event) => (
+        <EventRow key={event.id} event={event} projectId={projectId} />
+      ))}
+      <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-100">
+        <span className="text-xs text-gray-400">{data?.total ?? 0} total events</span>
       </div>
     </div>
   )

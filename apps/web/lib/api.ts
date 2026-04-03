@@ -1,8 +1,5 @@
 import axios from 'axios'
-import { useAuth } from '@clerk/nextjs'
 
-// base URL points to your Fastify server
-// NEXT_PUBLIC_ prefix makes it available in the browser
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
   headers: {
@@ -11,8 +8,6 @@ export const api = axios.create({
 })
 
 // --- types ---
-// these match exactly what Fastify returns
-// keeping them here means one place to update if the API changes
 
 export type Project = {
   id: string
@@ -27,7 +22,7 @@ export type Event = {
   id: string
   projectId: string
   payload: Record<string, unknown>
-  headers: Record<string, string>
+  headers: Record<string, string> | null
   sourceIp: string | null
   ingestedAt: string
 }
@@ -37,15 +32,6 @@ export type EventsResponse = {
   total: number
   page: number
   limit: number
-}
-
-export type Destination = {
-  id: string
-  projectId: string
-  url: string
-  label: string | null
-  isActive: boolean
-  createdAt: string
 }
 
 export type DeliveryAttempt = {
@@ -61,6 +47,15 @@ export type DeliveryAttempt = {
   destination?: Destination
 }
 
+export type Destination = {
+  id: string
+  projectId: string
+  url: string
+  label: string | null
+  isActive: boolean
+  createdAt: string
+}
+
 export type FilterRule = {
   id: string
   destinationId: string
@@ -69,193 +64,121 @@ export type FilterRule = {
   value: string
 }
 
-export type DestinationHealth = {
-  destinationId: string
-  url: string
-  label: string | null
-  isActive: boolean
-  successRate: number
-  avgLatencyMs: number | null
-  lastAttemptAt: string | null
-  status: 'healthy' | 'degraded' | 'down' | 'unknown'
-}
-
 export type ProjectAnalytics = {
-  eventsReceived: number
-  eventsDelivered: number
-  eventsFailed: number
-  avgLatencyMs: number | null
-  dailyCounts: { date: string; count: number }[]
-  deliveryRate: number
+  totalEvents: number
+  eventsLast24h: number
+  eventsLast7d: number
+  eventsLast30d: number
+  topEventTypes: { type: string; count: number }[]
 }
 
-export type AlertRule = {
-  id: string
-  destinationId: string
-  metric: string
-  operator: string
-  threshold: number
-  windowMinutes: number
-  channel: string
-  channelTarget: string
-  isActive: boolean
-  lastFiredAt: string | null
-  createdAt: string
-}
+// --- API function factories ---
+// These accept an optional token for client-side authenticated calls.
+// Server components pass the token explicitly.
+// Client components use the useApi() hook below.
 
-// --- API functions ---
-// each function maps to one backend endpoint
-// components call these, never axios directly
-
-export const projectsApi = {
-  list: (orgId: string, token?: string) =>
-    api.get<Project[]>(`/api/projects?orgId=${orgId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  create: (data: { name: string; environment: string; organisationId: string }, token?: string) =>
-    api.post<Project>('/api/projects', data, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  get: (id: string, token?: string) =>
-    api.get<Project>(`/api/projects/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export const eventsApi = {
-  list: (projectId: string, page = 1, token?: string) =>
-    api.get<EventsResponse>(`/api/events?projectId=${projectId}&page=${page}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  get: (id: string, token?: string) =>
-    api.get<Event & { deliveryAttempts: DeliveryAttempt[] }>(`/api/events/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export const destinationsApi = {
-  list: (projectId: string, token?: string) =>
-    api.get<Destination[]>(`/api/destinations?projectId=${projectId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  create: (data: { projectId: string; url: string; label?: string }, token?: string) =>
-    api.post<Destination>('/api/destinations', data, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  toggle: (id: string, isActive: boolean, token?: string) =>
-    api.patch<Destination>(`/api/destinations/${id}`, { isActive }, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  delete: (id: string, token?: string) =>
-    api.delete(`/api/destinations/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export const deliveriesApi = {
-  forEvent: (eventId: string, token?: string) =>
-    api.get<DeliveryAttempt[]>(`/api/deliveries/event/${eventId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  forDestination: (destinationId: string, token?: string) =>
-    api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  replay: (eventId: string, token?: string) =>
-    api.post(`/api/deliveries/event/${eventId}/replay`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export const filterRulesApi = {
-  list: (destinationId: string, token?: string) =>
-    api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  create: (data: { destinationId: string; field: string; operator: string; value: string }, token?: string) =>
-    api.post<FilterRule>('/api/filter-rules', data, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  delete: (id: string, token?: string) =>
-    api.delete(`/api/filter-rules/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export const alertRulesApi = {
-  list: (destinationId: string, token?: string) =>
-    api.get<AlertRule[]>(`/api/alert-rules/destination/${destinationId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  create: (data: {
-    destinationId: string
-    metric: string
-    operator: string
-    threshold: number
-    windowMinutes: number
-    channel: string
-    channelTarget: string
-  }, token?: string) =>
-    api.post<AlertRule>('/api/alert-rules', data, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  delete: (id: string, token?: string) =>
-    api.delete(`/api/alert-rules/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export const analyticsApi = {
-  health: (projectId: string, token?: string) =>
-    api.get<DestinationHealth[]>(`/api/analytics/health?projectId=${projectId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-
-  project: (projectId: string, token?: string) =>
-    api.get<ProjectAnalytics>(`/api/analytics/project?projectId=${projectId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }),
-}
-
-export function useApi() {
-  const { getToken } = useAuth()
-
+export function makeProjectsApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
   return {
-    async get<T>(url: string) {
-      const token = await getToken()
-      return api.get<T>(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-    },
-    async post<T>(url: string, data?: unknown) {
-      const token = await getToken()
-      return api.post<T>(url, data, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-    },
-    async patch<T>(url: string, data?: unknown) {
-      const token = await getToken()
-      return api.patch<T>(url, data, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-    },
-    async delete(url: string) {
-      const token = await getToken()
-      return api.delete(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-    },
+    list: (orgId: string) =>
+      api.get<Project[]>(`/api/projects?orgId=${orgId}`, { headers }),
+    create: (data: { name: string; environment: string; organisationId: string }) =>
+      api.post<Project>('/api/projects', data, { headers }),
+    get: (id: string) =>
+      api.get<Project>(`/api/projects/${id}`, { headers }),
   }
 }
+
+export function makeEventsApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    list: (projectId: string, page = 1) =>
+      api.get<EventsResponse>(`/api/events?projectId=${projectId}&page=${page}`, { headers }),
+    get: (id: string) =>
+      api.get<Event & { deliveryAttempts: DeliveryAttempt[] }>(`/api/events/${id}`, { headers }),
+  }
+}
+
+export function makeDeliveriesApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    forEvent: (eventId: string) =>
+      api.get<DeliveryAttempt[]>(`/api/deliveries/event/${eventId}`, { headers }),
+    forDestination: (destinationId: string) =>
+      api.get<DeliveryAttempt[]>(`/api/deliveries/destination/${destinationId}`, { headers }),
+    replay: (eventId: string) =>
+      api.post(`/api/deliveries/event/${eventId}/replay`, {}, { headers }),
+  }
+}
+
+export function makeDestinationsApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    list: (projectId: string) =>
+      api.get<Destination[]>(`/api/destinations?projectId=${projectId}`, { headers }),
+    create: (data: { projectId: string; url: string; label?: string }) =>
+      api.post<Destination>('/api/destinations', data, { headers }),
+    toggle: (id: string, isActive: boolean) =>
+      api.patch<Destination>(`/api/destinations/${id}`, { isActive }, { headers }),
+    delete: (id: string) =>
+      api.delete(`/api/destinations/${id}`, { headers }),
+  }
+}
+
+export function makeFilterRulesApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    list: (destinationId: string) =>
+      api.get<FilterRule[]>(`/api/filter-rules/destination/${destinationId}`, { headers }),
+    create: (data: { destinationId: string; field: string; operator: string; value: string }) =>
+      api.post<FilterRule>('/api/filter-rules', data, { headers }),
+    delete: (id: string) =>
+      api.delete(`/api/filter-rules/${id}`, { headers }),
+  }
+}
+
+export function makeOrganisationsApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    list: () =>
+      api.get('/api/organisations', { headers }),
+    getMembers: (orgId: string) =>
+      api.get(`/api/organisations/${orgId}/members`, { headers }),
+    addMember: (orgId: string, data: { userId: string; role: string }) =>
+      api.post(`/api/organisations/${orgId}/members`, data, { headers }),
+    removeMember: (orgId: string, memberId: string) =>
+      api.delete(`/api/organisations/${orgId}/members/${memberId}`, { headers }),
+  }
+}
+
+export function makeApiKeysApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    list: () =>
+      api.get('/api/api-keys', { headers }),
+    create: (data: { label?: string }) =>
+      api.post('/api/api-keys', data, { headers }),
+    revoke: (id: string) =>
+      api.delete(`/api/api-keys/${id}`, { headers }),
+  }
+}
+
+export function makeAnalyticsApi(token?: string) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {}
+  return {
+    getStats: (projectId: string) =>
+      api.get(`/api/analytics/${projectId}/stats`, { headers }),
+    getEventTrends: (projectId: string) =>
+      api.get(`/api/analytics/${projectId}/event-trends`, { headers }),
+  }
+}
+
+// --- Legacy exports for server components that already pass tokens manually ---
+// Keep these so existing server-side code in page.tsx files doesn't break
+
+export const projectsApi = makeProjectsApi()
+export const eventsApi = makeEventsApi()
+export const deliveriesApi = makeDeliveriesApi()
+export const destinationsApi = makeDestinationsApi()
+export const filterRulesApi = makeFilterRulesApi()
+export const analyticsApi = makeAnalyticsApi()

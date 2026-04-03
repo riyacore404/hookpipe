@@ -14,6 +14,7 @@ import { organisationRoutes } from './routes/organisations.js'
 import { healthRoutes } from './routes/health.js'
 import { analyticsRoutes } from './routes/analytics.js'
 import { alertRuleRoutes } from './routes/alertrules.js'
+import { alertRoutes } from './routes/alerts.js'
 
 const app = Fastify({
   logger: false, // we use pino directly
@@ -32,7 +33,7 @@ await app.register(cors, {
 
 // Public routes — no auth
 await app.register(ingestRoutes, { prefix: '/ingest' })
- 
+
 // Authenticated routes
 await app.register(projectRoutes, { prefix: '/api/projects' })
 await app.register(eventRoutes, { prefix: '/api/events' })
@@ -44,6 +45,7 @@ await app.register(organisationRoutes, { prefix: '/api/organisations' })
 await app.register(healthRoutes, { prefix: '/health' })
 await app.register(analyticsRoutes, { prefix: '/api/analytics' })
 await app.register(alertRuleRoutes, { prefix: '/api/alert-rules' })
+await app.register(alertRoutes, { prefix: '/api/alerts' })
 
 try {
   await app.listen({ port: env.PORT, host: '0.0.0.0' })

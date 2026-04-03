@@ -20,6 +20,12 @@ export default function OnboardingPage() {
     try {
       const token = await getToken()
 
+      if (!token) {
+        setError('Not authenticated. Please refresh and try again.')
+        setLoading(false)
+        return
+      }
+
       const orgRes = await api.post(
         '/api/organisations',
         { name },
@@ -27,18 +33,21 @@ export default function OnboardingPage() {
       )
       const org = orgRes.data
 
-      localStorage.setItem('hookpipe_active_org', org.id)
-
       const projectRes = await api.post(
         '/api/projects',
-        { name: 'My first project', environment: 'development', organisationId: org.id },
+        {
+          name: 'My first project',
+          environment: 'development',
+          organisationId: org.id,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const project = projectRes.data
 
-      router.replace(`/projects/${project.id}/events`)
-    } catch {
-      setError('Something went wrong. Try again.')
+      router.push(`/projects/${project.id}/events`)
+    } catch (err: any) {
+      console.error('Onboarding error:', err.response?.data ?? err.message)
+      setError(err.response?.data?.error ?? 'Something went wrong. Try again.')
       setLoading(false)
     }
   }

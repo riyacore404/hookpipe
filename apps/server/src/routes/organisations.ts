@@ -11,6 +11,7 @@ export async function organisationRoutes(app: FastifyInstance) {
     { preHandler: requireAuthOrApiKey },
     async (request, reply) => {
       const userId = (request as any).userId
+
       const body = z.object({
         name: z.string().min(1).max(100),
       }).safeParse(request.body)
@@ -21,6 +22,18 @@ export async function organisationRoutes(app: FastifyInstance) {
 
       // create org and membership in one transaction
       const org = await db.$transaction(async (tx) => {
+        // Upsert the Clerk user into our users table first
+        // This satisfies the FK constraint on organisation_members
+        await tx.user.upsert({
+          where: { id: userId },
+          create: {
+            id: userId,
+            email: `${userId}@clerk.local`, // placeholder — Clerk owns real email
+            passwordHash: 'clerk-managed',
+          },
+          update: {}, // already exists, no changes needed
+        })
+
         const newOrg = await tx.organisation.create({
           data: { name: body.data.name },
         })

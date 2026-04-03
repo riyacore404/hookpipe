@@ -2,41 +2,46 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { destinationsApi, type Destination } from '@/lib/api'
+import { useApi } from '@/hooks/useApi'
+import { type Destination, type DeliveryAttempt } from '@/lib/api'
 import HealthSparkline from './HealthSparkline'
 import FilterRuleBuilder from './FilterRuleBuilder'
-import AlertRuleBuilder from './AlertRuleBuilder'
-import { useAuth } from '@clerk/nextjs'
 
 function EnvironmentDot({ isActive }: { isActive: boolean }) {
-  return (
-    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-green-500' : 'bg-gray-300'}`} />
-  )
+  return <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-green-500' : 'bg-gray-300'}`} />
+}
+
+function SuccessRate({ destinationId }: { destinationId: string }) {
+  const { deliveriesApi } = useApi()
+  const { data: attempts } = useQuery({
+    queryKey: ['deliveries-dest', destinationId],
+    queryFn: () => deliveriesApi.forDestination(destinationId).then(r => r.data),
+    staleTime: 30_000,
+  })
+
+  if (!attempts || attempts.length === 0) return <span className="text-xs text-gray-300">—</span>
+  const successful = attempts.filter((a: DeliveryAttempt) => a.status === 'success').length
+  const rate = Math.round((successful / attempts.length) * 100)
+  const color = rate === 100 ? 'text-green-600' : rate >= 80 ? 'text-amber-600' : 'text-red-500'
+  return <span className={`text-xs font-medium ${color}`}>{rate}%</span>
 }
 
 type Props = { projectId: string }
 
 export default function DestinationsList({ projectId }: Props) {
-  const { getToken } = useAuth()
   const queryClient = useQueryClient()
+  const { destinationsApi } = useApi()
   const [showForm, setShowForm] = useState(false)
   const [url, setUrl] = useState('')
   const [label, setLabel] = useState('')
 
   const { data: destinations, isLoading } = useQuery({
     queryKey: ['destinations', projectId],
-    queryFn: async () => {
-  const token = await getToken()
-  const res = await destinationsApi.list(projectId, token ?? undefined)
-  return res.data
-},
+    queryFn: () => destinationsApi.list(projectId).then(r => r.data),
   })
 
   const createMutation = useMutation({
-    mutationFn: async () => {
-      const token = await getToken()
-      return destinationsApi.create({ projectId, url, label }, token ?? undefined)
-    },
+    mutationFn: () => destinationsApi.create({ projectId, url, label }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['destinations', projectId] })
       setUrl('')
@@ -46,19 +51,17 @@ export default function DestinationsList({ projectId }: Props) {
   })
 
   const toggleMutation = useMutation({
-    mutationFn: async (params: { id: string; isActive: boolean }) => {
-      const token = await getToken()
-      return destinationsApi.toggle(params.id, params.isActive, token ?? undefined)
-    },
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      destinationsApi.toggle(id, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['destinations', projectId] })
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const token = await getToken()
-      return destinationsApi.delete(id, token ?? undefined)
+    mutationFn: (id: string) => destinationsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['destinations', projectId] })
     },
   })
 
@@ -68,8 +71,6 @@ export default function DestinationsList({ projectId }: Props) {
 
   return (
     <div>
-
-      {/* add destination form */}
       {showForm ? (
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
           <p className="text-sm font-medium text-gray-800 mb-3">Add destination</p>
@@ -83,7 +84,7 @@ export default function DestinationsList({ projectId }: Props) {
             />
             <input
               type="text"
-              placeholder="Label (optional) — e.g. Orders service"
+              placeholder="Label (optional)"
               value={label}
               onChange={e => setLabel(e.target.value)}
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 w-full"
@@ -114,37 +115,28 @@ export default function DestinationsList({ projectId }: Props) {
         </button>
       )}
 
-      {/* destinations list */}
       {!destinations || destinations.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-xl px-6 py-10 text-center">
           <p className="text-sm font-medium text-gray-700">No destinations yet</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Add a destination URL to start receiving webhooks
-          </p>
+          <p className="text-xs text-gray-400 mt-1">Add a destination URL to start receiving webhooks</p>
         </div>
       ) : (
         <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
           {destinations.map((dest: Destination, i: number) => (
             <div
               key={dest.id}
-              className={`px-4 py-3.5 ${i < destinations.length - 1 ? 'border-b border-gray-50' : ''
-                }`}
+              className={`px-4 py-3.5 ${i < destinations.length - 1 ? 'border-b border-gray-50' : ''}`}
             >
-              {/* top row — dot, info, sparkline, actions */}
               <div className="flex items-center gap-3">
                 <EnvironmentDot isActive={dest.isActive} />
-
                 <div className="flex-1 min-w-0">
-                  {dest.label && (
-                    <p className="text-sm font-medium text-gray-800">{dest.label}</p>
-                  )}
+                  {dest.label && <p className="text-sm font-medium text-gray-800">{dest.label}</p>}
                   <p className="text-xs font-mono text-gray-400 truncate">{dest.url}</p>
                 </div>
-
-                <div className="flex-shrink-0 mx-2">
+                <div className="flex items-center gap-1.5 flex-shrink-0 mx-2">
                   <HealthSparkline destinationId={dest.id} />
+                  <SuccessRate destinationId={dest.id} />
                 </div>
-                
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => toggleMutation.mutate({ id: dest.id, isActive: !dest.isActive })}
@@ -160,10 +152,7 @@ export default function DestinationsList({ projectId }: Props) {
                   </button>
                 </div>
               </div>
-
-              {/* filter rules — shown below each destination */}
               <FilterRuleBuilder destinationId={dest.id} />
-              <AlertRuleBuilder destinationId={dest.id} />
             </div>
           ))}
         </div>
